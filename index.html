@@ -3,28 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Our Memories</title>
-    <link rel="stylesheet" href="static/css/styles.css">
+    <title>Memories Capsule</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        main {
+            max-width: 800px;
+            width: 100%;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .memory {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .memory img {
+            max-width: 100%;
+            border-radius: 8px;
+        }
+        .memory p {
+            color: #555;
+            margin-top: 10px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        input[type="file"], textarea {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
 </head>
 <body>
     <header>
-        <h1>Welcome to Our Memories</h1>
-        <nav>
-            <a href="gallery.html">Gallery</a>
-            <a href="diary.html">Diary</a>
-            <div class="gallery">
-              <img src="static/images/photo1.jpg" alt="Photo 1">
-              <img src="static/images/photo2.jpg" alt="Photo 2">
-              <img src="static/images/photo3.jpg" alt="Photo 3">
-          </div>
-          
-        </nav>
+        <h1>Memories Capsule</h1>
+        <p>Preserve your precious moments to revisit after B.Tech</p>
     </header>
     <main>
-        <p>This website is a treasure chest of our unforgettable B.Tech moments!</p>
+        <div id="memories">
+            <!-- Memories will be displayed here -->
+        </div>
+        <form onsubmit="return addMemory()">
+            <h2>Add a New Memory</h2>
+            <input type="file" id="imageInput" accept="image/*">
+            <textarea id="messageInput" placeholder="Write your message here..." rows="4" cols="50"></textarea>
+            <button type="submit">Add Memory</button>
+        </form>
     </main>
-    <footer>
-        <p>&copy; 2025 Our Memories</p>
-    </footer>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const storage = firebase.storage();
+
+        function addMemory() {
+            const memoriesDiv = document.getElementById('memories');
+            const imageInput = document.getElementById('imageInput');
+            const messageInput = document.getElementById('messageInput');
+
+            if (imageInput.files.length > 0 && messageInput.value.trim()) {
+                const file = imageInput.files[0];
+                const storageRef = storage.ref('images/' + file.name);
+                const uploadTask = storageRef.put(file);
+
+                uploadTask.on('state_changed', 
+                    (snapshot) => {
+                        // Handle progress
+                    }, 
+                    (error) => {
+                        console.error('Upload failed:', error);
+                    }, 
+                    () => {
+                        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                            const newMemoryKey = database.ref().child('memories').push().key;
+                            const memoryData = {
+                                imageUrl: downloadURL,
+                                message: messageInput.value.trim()
+                            };
+                            const updates = {};
+                            updates['/memories/' + newMemoryKey] = memoryData;
+                            database.ref().update(updates);
+
+                            const memoryDiv = document.createElement('div');
+                            memoryDiv.classList.add('memory');
+
+                            const img = document.createElement('img');
+                            img.src = downloadURL;
+                            memoryDiv.appendChild(img);
+
+                            const p = document.createElement('p');
+                            p.textContent = messageInput.value.trim();
+                            memoryDiv.appendChild(p);
+
+                            memoriesDiv.appendChild(memoryDiv);
+
+                            imageInput.value = '';
+                            messageInput.value = '';
+                            alert('Memory added successfully!');
+                        });
+                    }
+                );
+            } else {
+                alert('Please select an image and write a message.');
+            }
+
+            return false; // Prevent actual form submission
+        }
+
+        function displayMemories() {
+            const memoriesDiv = document.getElementById('memories');
+            database.ref('memories').on('value', (snapshot) => {
+                memoriesDiv.innerHTML = '';
+                const memories = snapshot.val();
+                for (const key in memories) {
+                    const memory = memories[key];
+                    const memoryDiv = document.createElement('div');
+                    memoryDiv.classList.add('memory');
+
+                    const img = document.createElement('img');
+                    img.src = memory.imageUrl;
+                    memoryDiv.appendChild(img);
+
+                    const p = document.createElement('p');
+                    p.textContent = memory.message;
+                    memoryDiv.appendChild(p);
+
+                    memoriesDiv.appendChild(memoryDiv);
+                }
+            });
+        }
+
+        window.onload = displayMemories;
+    </script>
 </body>
 </html>
